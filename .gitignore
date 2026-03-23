@@ -1,0 +1,31 @@
+# Python 运行缓存与虚拟环境
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# 日志与抓包文件 (避免大型二进制文件拖慢 Git)
+*.log
+*.pcap
+*.cap
+
+# IDE 配置文件
+.vscode/
+.idea/
+*.swp
+
+# 操作系统自动生成的垃圾文件
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+venv/
+.venv/
+env/
+
+workspaces/

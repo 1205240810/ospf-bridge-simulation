@@ -1,0 +1,53 @@
+ project_name: my_ospf_lab  # 项目名，作为文件夹名
+
+devices:
+  - name: R1
+    type: ne40
+    console_port: 5001
+    image: /home/ubuntu/lab/ne40.qcow2
+
+  - name: R2
+    type: ne40
+    console_port: 5002
+    image: /home/ubuntu/lab/ne40.qcow2
+
+  - name: R3
+    type: ne40
+    console_port: 5003
+    image: /home/ubuntu/lab/ne40.qcow2
+
+  - name: S1
+    type: h3c
+    console_port: 6001
+    image: /home/ubuntu/lab/h3c.qcow2
+
+  - name: S2
+    type: h3c
+    console_port: 6002
+    image: /home/ubuntu/lab/h3c.qcow2
+
+  - name: PC1
+    type: pc
+    console_port: 5004
+    image: /home/ubuntu/lab/cirros.qcow2
+
+  - name: PC2
+    type: pc
+    console_port: 5005
+    image: /home/ubuntu/lab/cirros.qcow2
+
+  # --- 新增的云节点 ---
+  - name: CLOUD
+    type: cloud
+    # Cloud 不需要控制台端口和镜像，它只是一个物理网卡的映射符
+
+links:
+  - ["PC1", "S1", 1]
+  - ["S1", 2, "R1", 1]
+  - ["R1", 2, "R3", 1]
+  - ["R3", 2, "R2", 2]
+  - ["S2", 2, "R2", 1]
+  - ["PC2", "S2", 1]
+  # --- 新增的跨界连线 ---
+  # 将 R1 的第 3 个接口，连接到 CLOUD 的 ens33 物理网卡上
+  - ["R1", 3, "CLOUD", "ens33"]
