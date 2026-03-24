@@ -1,4 +1,4 @@
- project_name: my_ospf_lab  # 项目名，作为文件夹名
+project_name: my_ospf_lab # 项目名，作为文件夹名
 
 devices:
   - name: R1
@@ -42,12 +42,23 @@ devices:
     # Cloud 不需要控制台端口和镜像，它只是一个物理网卡的映射符
 
 links:
+  # 完美的理想网络链路（旧版纯列表格式，自动向下兼容）
   - ["PC1", "S1", 1]
   - ["S1", 2, "R1", 1]
-  - ["R1", 2, "R3", 1]
-  - ["R3", 2, "R2", 2]
   - ["S2", 2, "R2", 1]
   - ["PC2", "S2", 1]
-  # --- 新增的跨界连线 ---
   # 将 R1 的第 3 个接口，连接到 CLOUD 的 ens33 物理网卡上
   - ["R1", 3, "CLOUD", "ens33"]
+
+  # --- 新增的仿真劣化链路（新版字典格式） ---
+  # R1 到 R3 的链路：增加 50ms 延迟，2% 丢包
+  - endpoints: ["R1", 2, "R3", 1]
+    emulation:
+      delay: "50ms"
+      loss: "2%"
+
+  # R3 到 R2 的链路：带宽强行限制为 10Mbps，并且有 100ms 延迟
+  - endpoints: ["R3", 2, "R2", 2]
+    emulation:
+      delay: "100ms"
+      rate: "10mbit"

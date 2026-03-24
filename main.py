@@ -21,12 +21,6 @@ def cleanup_environment():
     subprocess.run(cmd_ovs, shell=True)
 
     # 3. 精确清理 veth 和 tap
-    # 逻辑：
-    # ip -o link show type veth : 只显示 veth 类型的接口，-o 表示单行显示
-    # awk -F': ' '{print $2}'   : 提取 "veth_xxx@peer" 部分
-    # awk -F'@' '{print $1}'    : 只要 "@" 前面的部分，去掉后缀
-    # xargs ... ip link del     : 执行删除
-    
     print("   - 清理残留 veth 接口...")
     clean_veth_cmd = (
         "sudo ip -o link show type veth "
@@ -37,11 +31,10 @@ def cleanup_environment():
     subprocess.run(clean_veth_cmd, shell=True)
 
     print("   - 清理残留 tap 接口...")
-    # 这里的 awk 逻辑稍微简单点，因为 tap 一般没有 @后缀
     clean_tap_cmd = (
         "sudo ip link | grep 'tap_' "
         "| awk -F': ' '{print $2}' "
-        "| awk -F'@' '{print $1}' "  # 以防万一也有后缀
+        "| awk -F'@' '{print $1}' " 
         "| xargs -I {} sudo ip link del {} 2>/dev/null"
     )
     subprocess.run(clean_tap_cmd, shell=True)
@@ -52,11 +45,7 @@ def load_topology(yaml_file):
     with open(yaml_file, 'r') as f:
         topo = yaml.safe_load(f)
 
-    # 获取项目名，如果没有就叫 default_lab
     proj_name = topo.get('project_name', 'default_lab')
-    
-    # 定义所有实验文件的总目录，比如叫 workspaces
-    # 最终结构: ./workspaces/ospf_lab_01/
     workspace_path = os.path.join("./workspaces", proj_name)
 
     print(f"本次实验工作区: {workspace_path}")
@@ -71,17 +60,15 @@ def load_topology(yaml_file):
         
         img_path = dev_conf.get('image') 
 
-        device = None # 初始化变量
+        device = None 
 
         if dtype == 'ne40':
             if img_path:
-                # 如果 YAML 里写了路径，就用 YAML 的
                 device = NE40Router(name, console_port=port, workspace_dir=workspace_path, image_path=img_path)
             else:
-                # 如果 YAML 没写，就用类里定义的默认值
                 device = NE40Router(name, console_port=port, workspace_dir=workspace_path)
 
-        elif dtype == 'h3c':  # <--- 新增这个判断
+        elif dtype == 'h3c':  
             if img_path:
                 device = H3CSwitch(name, console_port=port, workspace_dir=workspace_path, image_path=img_path)
             else:
@@ -92,14 +79,13 @@ def load_topology(yaml_file):
                 device = CirrosPC(name, console_port=port, workspace_dir=workspace_path, image_path=img_path)
             else:
                 device = CirrosPC(name, console_port=port, workspace_dir=workspace_path)
-        # === 新增 Cloud 占位判断 ===
+                
         elif dtype == 'cloud':
             print(f"☁️ 注册云节点: {name} (物理桥接模式)")
-            device = "CLOUD_NODE"  # 存个占位符，防止后面报错
-        # 启动并存入字典
-        # 启动并存入字典
+            device = "CLOUD_NODE"  
+
         if device:
-            if device != "CLOUD_NODE":  # <--- 拦截！如果是云节点，就别去执行 start()
+            if device != "CLOUD_NODE":  
                 device.start()
             device_map[name] = device
         else:
@@ -110,24 +96,35 @@ def load_topology(yaml_file):
 
     # 2. 建立连接
     print("\nStarting Link Setup...")
-    for link in topo['links']:
+    for link_data in topo['links']:
         
+        # === 新增：解析字典或列表，实现向下兼容 ===
+        if isinstance(link_data, dict):
+            # 新版本带有 emulation 的格式
+            link = link_data["endpoints"]
+            emulation = link_data.get("emulation", None)
+        else:
+            # 老版本纯列表格式
+            link = link_data
+            emulation = None
+
         # === 情况 A: PC 连 路由 (3个参数) ===
         if len(link) == 3:
             pc_name = link[0]
             router_name = link[1]
-            port_idx = link[2] # 1-based index
+            port_idx = link[2] 
 
             print(f"Connecting PC: {pc_name} -> {router_name} Port {port_idx}")
             pc = device_map[pc_name]
             router = device_map[router_name]
             
-            # PC 连接逻辑不变
+            if emulation:
+                print(f"⚠️ 提示: PC终端连线暂未开启仿真参数下发，当前 {emulation} 设置将被忽略。")
+                
             pc.connect_to_router(router, port_idx)
 
         # === 情况 B: 路由连路由 或 路由连云 (4个参数) ===
         elif len(link) == 4:
-            # 判断是不是连向 CLOUD (支持 CLOUD 写在前面或后面)
             if link[2] == "CLOUD" or link[0] == "CLOUD":
                 if link[2] == "CLOUD":
                     router_name, router_port, cloud_name, phys_nic = link
@@ -137,17 +134,16 @@ def load_topology(yaml_file):
                 print(f"Connecting Router: {router_name} Port {router_port} <--> {cloud_name} NIC {phys_nic}")
                 
                 router = device_map[router_name]
-                # 获取路由器对应接口的底层 OVS 网桥
                 bridge_A = router.ports[router_port - 1]['bridge']
                 
-                # 1. 激活物理网卡
+                if emulation:
+                    print(f"⚠️ 提示: 物理网卡桥接暂不支持注入仿真参数，当前 {emulation} 设置将被忽略。")
+                
                 subprocess.run(f"sudo ip link set {phys_nic} up", shell=True)
-                # 2. 将物理网卡强制挂载到路由器的 OVS 网桥上
                 subprocess.run(f"sudo ovs-vsctl add-port {bridge_A.name} {phys_nic}", shell=True)
                 print(f"✅ 成功将物理网卡 {phys_nic} 桥接到 {bridge_A.name}")
 
             else:
-                # 这是你原本的 路由 连 路由 的逻辑
                 rA_name = link[0]
                 rA_port = link[1]
                 rB_name = link[2]
@@ -161,7 +157,8 @@ def load_topology(yaml_file):
                 bridge_A = rA.ports[rA_port - 1]['bridge']
                 bridge_B = rB.ports[rB_port - 1]['bridge']
 
-                create_veth_link(bridge_A.name, bridge_B.name)
+                # === 核心修改：将 emulation 参数传递给底层连线函数 ===
+                create_veth_link(bridge_A.name, bridge_B.name, emulation_params=emulation)
 
         else:
             print(f"⚠️ 无法识别的连接格式: {link}")
@@ -169,25 +166,22 @@ def load_topology(yaml_file):
     return device_map
 
 if __name__ == "__main__":
-    # 1. 检查用户有没有输入足够的参数
     if len(sys.argv) < 2:
         print("用法错误！请使用以下格式:")
         print("  python main.py load <yaml_file>")
         print("  python main.py clean")
         exit(1)
 
-    # 2. 获取“动作” (load / clean)
     action = sys.argv[1]
 
     if action == "load":
-        # 确保用户指定了文件名
         if len(sys.argv) < 3:
             print("❌ 错误: 请指定要加载的 topology 文件路径。")
             exit(1)
             
         yaml_file = sys.argv[2]
 
-        cleanup_environment() # 启动前先清场
+        cleanup_environment() 
         print(f"正在加载拓扑: {yaml_file}")
         devices = load_topology(yaml_file)
         
@@ -200,10 +194,8 @@ if __name__ == "__main__":
                 dev.stop()
     
     elif action == "clean":
-        # --- 清理逻辑 ---
         cleanup_environment()
         print("✅ 手动清理完成。")
 
     else:
         print(f"❌ 未知命令: {action}")
-
