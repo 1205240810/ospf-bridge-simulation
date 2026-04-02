@@ -12,6 +12,13 @@
 
 宿主机环境：Windows 操作系统，需配合系统自带的 route 命令添加静态路由，以打通跨界网段。
 
+本项目除了底层的 QEMU 和 OVS 之外，Web 控制台还需要以下 Python 第三方库支撑。
+请确保在 Linux 终端中**使用 sudo 权限**全局安装它们（因为底层网络拉起需要 root 权限）：
+
+```bash
+# 安装 Web 框架、拓扑图渲染引擎、YAML 解析器与自动化探针库
+sudo pip3 install streamlit pyvis pexpect pyyaml
+
 #### 使用说明
 
 1.规划拓扑：打开项目根目录下的 topology.yaml 文件，根据实验需求定义路由器节点、网段划分与网线连接关系。
