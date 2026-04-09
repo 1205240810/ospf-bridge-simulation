@@ -90,22 +90,26 @@ def send_pc_cmds(name, port, cmds, username="cirros", password="gocubsgo"):
         print(f"❌ 失败: 连接 {name} 时发生错误: {e}\n")
 
 def run_automation():
-    # PC1 终极配置序列
-    # PC1 终极熬鹰序列
-    # PC1 潜行版配置（不惊动守护进程）
+    # ==========================================
+    # PC1 终极配置 (网段改为 110.1.1.x)
+   # ==========================================
+    # PC1 终极纯净版配置 (网段 110.1.1.x)
+    # ==========================================
     pc1_cmds = [
-        "sudo ip addr add 10.1.1.2/24 dev eth0",   
-        "sudo ip route del default",              
-        "sudo ip route add default via 10.1.1.1"   
+        "sudo ip addr add 110.1.1.2/24 dev eth0",          # 💉 注入唯一正确的 IP
+        "sudo ip link set eth0 up",                        # ⚡ 拉起网卡
+        "sudo ip route add default via 110.1.1.1"          # 🗺️ 重新铺设默认路由
     ]
     
-    # PC2 潜行版配置
+    # ==========================================
+    # PC2 终极纯净版配置 (网段 130.1.1.x)
+    # ==========================================
     pc2_cmds = [
-        "sudo ip addr add 30.1.1.2/24 dev eth0",
-        "sudo ip route del default",
-        "sudo ip route add default via 30.1.1.1"
+        "sudo ip addr add 130.1.1.2/24 dev eth0",
+        "sudo ip link set eth0 up",
+        "sudo ip route add default via 130.1.1.1"
     ]
-    # 交换机命令 (H3C)
+    # 交换机命令 (H3C) - 跑二层透传
     s1_cmds = [
         "system-view", "sysname S1", "vlan 10", "quit",
         "interface range HGE1/0/1 to HGE1/0/2",
@@ -119,24 +123,29 @@ def run_automation():
         "undo shutdown", "quit", "return"
     ]
 
-    # 路由器命令 (华为)
+    # 路由器 R1 命令 (华为) - 对应 PC1 变成 110.1.1.1
     r1_cmds = [
-        "system-view", "interface Ethernet1/0/0", "ip address 10.1.1.1 24", "commit", "quit",
-        "interface Ethernet1/0/1", "ip address 20.1.1.2 24", "commit", "quit",
-        "interface Ethernet1/0/2", "ip address 192.168.153.200 24", "commit", "quit",
-        "ospf 1", "area 0", "network 10.1.1.0 0.0.0.255", "network 20.1.1.0 0.0.0.255", 
-        "network 192.168.153.0 0.0.0.255", "commit", "return"
+        "system-view", "interface Ethernet1/0/0", "ip address 110.1.1.1 24", "commit", "quit",
+        "interface Ethernet1/0/1", "ip address 120.1.1.2 24", "commit", "quit",
+        "ospf 1", "area 0", "network 110.1.1.0 0.0.0.255", "network 120.1.1.0 0.0.0.255", 
+        "commit", "return"
     ]
+    
+    # 路由器 R3 命令 (华为) - 连通物理设备
     r3_cmds = [
-        "system-view", "interface Ethernet1/0/0", "ip address 20.1.1.1 24", "commit", "quit",
-        "interface Ethernet1/0/1", "ip address 21.1.1.1 24", "commit", "quit",
-        "ospf 1", "area 0", "network 20.1.1.0 0.0.0.255", "quit",
-        "area 1", "network 21.1.1.0 0.0.0.255", "commit", "return"
+        "system-view", "interface Ethernet1/0/0", "ip address 120.1.1.1 24", "commit", "quit",
+        "interface Ethernet1/0/1", "ip address 121.1.1.1 24", "commit", "quit",
+        "interface Ethernet1/0/2", "ip address 192.168.160.200 24", "commit", "quit",
+        "ospf 1", "area 0", "network 120.1.1.0 0.0.0.255", "network 192.168.160.0 0.0.0.255", "quit",
+        "area 1", "network 121.1.1.0 0.0.0.255", "quit",
+        "commit", "return"
     ]
+    
+    # 路由器 R2 命令 (华为) - 对应 PC2
     r2_cmds = [
-        "system-view", "interface Ethernet1/0/0", "ip address 30.1.1.1 24", "commit", "quit",
-        "interface Ethernet1/0/1", "ip address 21.1.1.2 24", "commit", "quit",
-        "ospf 1", "area 1", "network 30.1.1.0 0.0.0.255", "network 21.1.1.0 0.0.0.255", 
+        "system-view", "interface Ethernet1/0/0", "ip address 130.1.1.1 24", "commit", "quit",
+        "interface Ethernet1/0/1", "ip address 121.1.1.2 24", "commit", "quit",
+        "ospf 1", "area 1", "network 130.1.1.0 0.0.0.255", "network 121.1.1.0 0.0.0.255", 
         "commit", "return"
     ]
 
@@ -146,7 +155,7 @@ def run_automation():
     send_pc_cmds("PC1", 5004, pc1_cmds)
     send_pc_cmds("PC2", 5005, pc2_cmds)
     
-    # 【关键修改】给 S1 和 S2 加上 needs_break=True 参数，让机器人替你狂按 Ctrl+C
+    # 给 S1 和 S2 加上 needs_break=True 参数，让机器人替你狂按 Ctrl+C
     send_router_cmds("S1", 6001, s1_cmds, delay=0.5, needs_break=True)
     send_router_cmds("S2", 6002, s2_cmds, delay=0.5, needs_break=True)
     

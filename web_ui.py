@@ -7,8 +7,8 @@ import time
 import base64
 import pexpect  # 【新增】用于实现后台幽灵探针
 from pyvis.network import Network
-st.set_page_config(page_title="战损网络仿真控制台", layout="wide")
-st.title("🌐 战损网络仿真控制台 (Web UI)")
+st.set_page_config(page_title="网络仿真控制台", layout="wide")
+st.title("🌐 网络仿真控制台 (Web UI)")
 
 # ==========================================================
 # 【暗号本与探针引擎：负责真实的 Ping 测试】
@@ -29,6 +29,7 @@ def run_real_ping(node_name, target_ip):
         
         # PC 节点的处理逻辑
         if node_name.startswith("PC"):
+            child.sendline('')
             index = child.expect(['login:', r'\$', pexpect.TIMEOUT])
             if index == 0:
                 child.sendline('cirros')
@@ -212,7 +213,7 @@ with col2:
     
     # 【新增：打通真实的 Ping 探针 UI】
     source_node = st.selectbox("选择发起探测的源节点", list(PORT_MAP.keys()))
-    target_ip = st.text_input("输入目标 IP 地址", value="10.1.1.1") 
+    target_ip = st.text_input("输入目标 IP 地址", value="110.1.1.1") 
     
     if st.button("🎯 发起真实 Ping 测试", type="primary"):
         with st.spinner(f"正在驱动 {source_node} 向 {target_ip} 发射探测包，请等待 3-5 秒..."):
